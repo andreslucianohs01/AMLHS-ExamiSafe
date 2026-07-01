@@ -56,6 +56,17 @@ export function useSchedule(grade: number) {
       if (cachedData) {
         setSubjects(cachedData.subjects);
         setLevel(cachedData.level);
+
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+
+        const subjects = (parsed.subjects as ExamSubject[]).filter(
+          (s) => s.start != null && s.end != null
+        );
+        setSubjects(subjects);
+        setLevel(parsed.level ?? null);
         setLoading(false);
         return;
       }
@@ -105,6 +116,38 @@ export function useSchedule(grade: number) {
     } finally {
       setLoading(false);
     }
+      } catch {
+        sessionStorage.removeItem(cacheKey);
+      }
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        const res = await fetch(`/api/schedule?grade=${grade}`);
+        if (!res.ok) throw new Error("Failed to load");
+        const data = await res.json();
+        if (cancelled) return;
+
+        const subjects = (data.subjects as ExamSubject[]).filter(
+          (s) => s.start != null && s.end != null
+        );
+
+        setSubjects(subjects);
+        setLevel(data.level ?? null);
+
+        sessionStorage.setItem(cacheKey, JSON.stringify({ ...data, subjects }));
+      } catch {
+        if (!cancelled) setError("Database Error");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [grade]);
 
   useEffect(() => {
@@ -120,6 +163,14 @@ export function useSchedule(grade: number) {
 }
 
 export async function getExamLink(grade: number, subject: string): Promise<string> {
+  return { subjects, level, loading, error };
+}
+
+
+export async function getExamLink(
+  grade: number,
+  subject: string
+): Promise<string> {
   const res = await fetch(
     `/api/schedule?grade=${grade}&subject=${encodeURIComponent(subject)}`
   );
