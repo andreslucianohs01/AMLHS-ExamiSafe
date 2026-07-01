@@ -1,82 +1,127 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { doc, getDocFromServer } from "firebase/firestore";
+import { db } from "../../api/firebase-client";
 
 export interface ExamSubject {
   subject: string;
-  start: string; // ISO string, e.g. "2026-06-03T09:00:00+08:00"
+  start: string;
   end: string;
 }
 
-/**
- * Fetches a grade's exam schedule ONCE, then caches it in sessionStorage.
- * A page refresh reads from cache — no extra network call.
- * The schedule never contains links.
- */
+interface CachedSchedule {
+  subjects: ExamSubject[];
+  level: string | null;
+  updatedAt: string;
+}
+
 export function useSchedule(grade: number) {
   const [subjects, setSubjects] = useState<ExamSubject[]>([]);
   const [level, setLevel] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchSchedule = useCallback(async (force = false) => {
     if (!grade) {
       setLoading(false);
       return;
     }
 
     const cacheKey = `schedule_grade_${grade}`;
+    let cachedData: CachedSchedule | null = null;
 
-    // 1. Refresh hits cache first — no network call.
-    const cached = sessionStorage.getItem(cacheKey);
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        setSubjects(parsed.subjects);
-        setLevel(parsed.level ?? null);
-        setLoading(false);
-        return;
-      } catch {
-        sessionStorage.removeItem(cacheKey); // corrupted -> refetch
+    // Step 1: Check sessionStorage cache
+    if (!force) {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const parsed: CachedSchedule = JSON.parse(cached);
+          cachedData = parsed;
+          console.log("Cache found, updatedAt:", parsed.updatedAt);
+        } catch {
+          sessionStorage.removeItem(cacheKey);
+        }
       }
     }
 
-    // 2. No cache -> fetch once, then store.
-    let cancelled = false;
-    (async () => {
-      try {
-        setLoading(true);
-        const res = await fetch(`/api/schedule?grade=${grade}`);
-        if (!res.ok) throw new Error("Failed to load");
-        const data = await res.json();
-        if (cancelled) return;
-        setSubjects(data.subjects);
-        setLevel(data.level ?? null);
-        sessionStorage.setItem(cacheKey, JSON.stringify(data));
-      } catch {
-        if (!cancelled) setError("Database Error");
-      } finally {
-        if (!cancelled) setLoading(false);
+    // Step 2: Force read updatedAt from Firestore SERVER
+    let serverUpdatedAt: string | null = null;
+    try {
+      const versionSnap = await getDocFromServer(doc(db, "exams", "all"));
+      if (versionSnap.exists()) {
+        serverUpdatedAt = versionSnap.data().updatedAt as string;
+        console.log("Server updatedAt:", serverUpdatedAt);
       }
-    })();
+    } catch (err) {
+      console.error("Firestore server read failed:", err);
+      if (cachedData) {
+        setSubjects(cachedData.subjects);
+        setLevel(cachedData.level);
+        setLoading(false);
+        return;
+      }
+    }
 
-    return () => {
-      cancelled = true;
-    };
+    // Step 3: Compare — if same, use cache
+    if (cachedData && serverUpdatedAt && cachedData.updatedAt === serverUpdatedAt) {
+      console.log("Cache is fresh, using it");
+      setSubjects(cachedData.subjects);
+      setLevel(cachedData.level);
+      setLoading(false);
+      return;
+    }
+
+    console.log("Cache stale or missing, fetching from API...");
+
+    // Step 4: Fetch fresh from API with cache-buster
+    try {
+      const res = await fetch(`/api/schedule?grade=${grade}&_cb=${Date.now()}`);
+      if (!res.ok) throw new Error("Failed to load");
+      const data = await res.json();
+
+      const subjects = (data.subjects as ExamSubject[] || []).filter(
+        (s: ExamSubject) => s.start != null && s.end != null
+      );
+
+      setSubjects(subjects);
+      setLevel((data.level as string | null) ?? null);
+
+      sessionStorage.setItem(
+        cacheKey,
+        JSON.stringify({
+          subjects,
+          level: data.level ?? null,
+          updatedAt: serverUpdatedAt || new Date().toISOString(),
+        })
+      );
+      console.log("New data cached");
+    } catch (err) {
+      console.error("API fetch failed:", err);
+      if (cachedData) {
+        setSubjects(cachedData.subjects);
+        setLevel(cachedData.level);
+      } else {
+        setError("Database Error");
+      }
+    } finally {
+      setLoading(false);
+    }
   }, [grade]);
 
-  return { subjects, level, loading, error };
+  useEffect(() => {
+    fetchSchedule();
+  }, [fetchSchedule]);
+
+  const refresh = useCallback(() => {
+    sessionStorage.removeItem(`schedule_grade_${grade}`);
+    return fetchSchedule(true);
+  }, [fetchSchedule, grade]);
+
+  return { subjects, level, loading, error, refresh };
 }
 
-/**
- * Called ONLY when a student clicks "Start" on an open exam.
- * The server re-checks the time and returns the link only if open.
- * Throws with a readable message otherwise (e.g. "Exam is not currently open").
- */
-export async function getExamLink(
-  grade: number,
-  subject: string
-): Promise<string> {
+export async function getExamLink(grade: number, subject: string): Promise<string> {
   const res = await fetch(
-    `/api/exam-link?grade=${grade}&subject=${encodeURIComponent(subject)}`
+    `/api/schedule?grade=${grade}&subject=${encodeURIComponent(subject)}`
   );
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));

@@ -1,3 +1,8 @@
 @import './fonts.css';
 @import './tailwind.css';
 @import './theme.css';
+
+/* Override dark mode to use class strategy instead of system preference */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Your other styles... */
