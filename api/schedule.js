@@ -16,6 +16,8 @@ export default async function handler(req, res) {
       return res.status(200).json({ level: null, subjects: [] });
     }
 
+    console.log(snap);
+
     const grades = snap.data().grades || {};
     const gradeData = grades[`Grade ${grade}`];
 
