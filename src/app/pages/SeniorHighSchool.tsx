@@ -10,7 +10,6 @@ import { Breadcrumbs } from "../components/Breadcrumbs";
 
 export default function SeniorHighSchool() {
   const navigate = useNavigate();
-
   const grades = [
     { level: 11, colorClasses: { light: "bg-violet-50", text: "text-violet-600", border: "border-violet-100", bar: "bg-violet-500", btn: "bg-violet-600 hover:bg-violet-700" } },
     { level: 12, colorClasses: { light: "bg-purple-50", text: "text-purple-600", border: "border-purple-100", bar: "bg-purple-500", btn: "bg-purple-600 hover:bg-purple-700" } },

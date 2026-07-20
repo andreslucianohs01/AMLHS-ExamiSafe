@@ -123,14 +123,13 @@ export async function getExamLink(grade: number, subject: string): Promise<strin
   const res = await fetch(
     `/api/schedule?grade=${grade}&subject=${encodeURIComponent(subject)}`
   );
-  console.log(res);
+  const data = await res.json();
+  console.log("getExamLink response:", data); // Should be { link: "..." }
+
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
     throw new Error(data.error || "Could not get exam link");
   }
-  const { link } = await res.json();
 
-  console.log(link);
-  return link as string;
+  return data.link;
 }
 
