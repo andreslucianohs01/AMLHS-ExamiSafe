@@ -191,7 +191,7 @@ export default function AdminDashboard() {
             <div className="hidden lg:flex bg-gray-800 border-b border-gray-700 px-6 py-4 items-center justify-between">
                 <div>
                     <h1 className="text-xl font-bold text-white">Admin Dashboard</h1>
-                    <p className="text-gray-400 text-sm">TNHSA ExamiSafe</p>
+                    <p className="text-gray-400 text-sm">AMLHS ExamiSafe</p>
                 </div>
                 <div className="flex items-center gap-4">
                     <span className="text-gray-400 text-sm">{user?.email}</span>

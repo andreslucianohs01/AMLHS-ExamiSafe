@@ -29,7 +29,7 @@ export default function AdminLogin() {
         <div className="bg-gray-800 p-6 sm:p-8 rounded-2xl shadow-xl w-full max-w-md border border-gray-700">
             <div className="text-center mb-6 sm:mb-8">
             <h1 className="text-xl sm:text-2xl font-bold text-white mb-2">Admin Portal</h1>
-            <p className="text-gray-400 text-sm">TNHSA ExamiSafe Management</p>
+            <p className="text-gray-400 text-sm">AMLHS ExamiSafe Management</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
