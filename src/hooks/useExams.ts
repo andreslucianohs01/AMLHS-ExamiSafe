@@ -129,6 +129,8 @@ export async function getExamLink(grade: number, subject: string): Promise<strin
     throw new Error(data.error || "Could not get exam link");
   }
   const { link } = await res.json();
+
+  console.log(link);
   return link as string;
 }
 
